@@ -43,22 +43,28 @@ crime_metrics = [
     "Property Crime Clearance Rate"
 ]
 
-# Sidebar controls
-st.sidebar.title("🔍 Filters")
-counties = st.sidebar.multiselect("Select County", df["County"].unique(), default=["Los Angeles County"])
-cities = st.sidebar.multiselect("Select City", df["City"].unique())
-selected_metric = st.sidebar.selectbox("Select Crime Metric", options=crime_metrics)
+# Sidebar filters
+st.sidebar.title("Filters")
+counties = st.sidebar.multiselect("Select County", options=df['County'].unique())
+cities = st.sidebar.multiselect("Select City", options=df['City'].dropna().unique())
+selected_metric = st.sidebar.selectbox("Select Crime Metric", options=per_capita_cols, format_func=lambda x: metric_names[x])
 
-# Filter data
-filtered_df = df[df["County"].isin(counties)]
+# Apply filters
+filtered_df = df.copy()
+if counties:
+    filtered_df = filtered_df[filtered_df['County'].isin(counties)]
 if cities:
-    filtered_df = filtered_df[filtered_df["City"].isin(cities)]
+    filtered_df = filtered_df[filtered_df['City'].isin(cities)]
+
 
 # Plot
 st.title("📊 California Crime Dashboard (per 100k)")
 st.markdown("Visualizing crime and clearance rates across cities and counties in California. Select metrics and filters from the sidebar.")
 
-st.subheader(f"{selected_metric} Over Time")
-plot_data = filtered_df.groupby(['Date', 'County'])[selected_metric].mean().reset_index()
-fig = px.line(plot_data, x='Date', y=selected_metric, color='County', title=selected_metric)
+st.subheader(f"{metric_names[selected_metric]} Over Time")
+
+grouping_column = "City" if cities else "County"
+plot_data = filtered_df.groupby(['Date', grouping_column])[selected_metric].mean().reset_index()
+
+fig = px.line(plot_data, x='Date', y=selected_metric, color=grouping_column, title=metric_names[selected_metric])
 st.plotly_chart(fig, use_container_width=True)
