@@ -7,7 +7,7 @@ st.set_page_config(layout="wide", page_title="California Crime Dashboard")
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv("chapter1log (1).csv")
+    df = pd.read_csv("chapter1log.csv")
     df.columns = df.columns.str.strip()
     df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str) + '-01')
     return df
