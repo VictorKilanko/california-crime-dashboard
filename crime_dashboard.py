@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(layout="wide", page_title="California Crime Dashboard")
 
@@ -10,7 +10,7 @@ def load_data():
     df.columns = df.columns.str.strip()
     df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str) + '-01')
 
-    # Rename selected crime columns to more user-friendly names
+    # Rename crime columns
     rename_map = {
         "Violent_per_100k": "Violent Crime Rate",
         "Property_per_100k": "Property Crime Rate",
@@ -31,10 +31,9 @@ def load_data():
     df = df.rename(columns=rename_map)
     return df
 
-# Load and prep data
 df = load_data()
 
-# Identify per capita crime columns
+# Columns for crime metrics
 per_capita_cols = [
     "Violent Crime Rate", "Property Crime Rate", "Homicide Rate", "Rape Rate",
     "Robbery by Firearm Rate", "Robbery Rate", "Aggravated Assault Rate",
@@ -43,35 +42,88 @@ per_capita_cols = [
     "Property Crime Clearance Rate"
 ]
 
-# Mapping for metric display names
 metric_names = {col: col for col in per_capita_cols}
+
+# Demographic variables to choose from
+demographic_vars = [
+    'Male Population', 'Female Population', 'White Population', 'Black Population',
+    'Asian Population', 'Hispanic Population', 'Foreign-Born Population',
+    'Veteran Population', 'Married Population', 'Widowed Population',
+    'Divorced Population', 'Separated Population', 'Never-Married Population',
+    'Unemployed Population', 'High School Graduates', "Bachelor's Degree Holders",
+    'Graduate Degree Holders', 'Children (0-17 years) Male', 'Young Adults (18-24 years) Male',
+    'Adults (25-44 years) Male', 'Middle-aged Adults (45-64 years) Male', 'Seniors (65+ years) Male',
+    'Children (0-17 years) Female', 'Young Adults (18-24 years) Female',
+    'Adults (25-44 years) Female', 'Middle-aged Adults (45-64 years) Female',
+    'Seniors (65+ years) Female', 'Male Veterans', 'Female Veterans'
+]
 
 # Sidebar filters
 st.sidebar.title("Filters")
 counties = st.sidebar.multiselect("Select County", options=df['County'].dropna().unique())
 cities = st.sidebar.multiselect("Select City", options=df['City'].dropna().unique())
-selected_metric = st.sidebar.selectbox("Select Crime Metric", options=per_capita_cols, format_func=lambda x: metric_names.get(x, x))
+selected_metric = st.sidebar.selectbox("Select Crime Metric", options=per_capita_cols, format_func=lambda x: metric_names[x])
+selected_demo = st.sidebar.selectbox("Overlay Demographic Variable (optional)", options=["None"] + demographic_vars)
 
-# Apply filters
+# Filter dataset
 filtered_df = df.copy()
 if counties:
     filtered_df = filtered_df[filtered_df['County'].isin(counties)]
 if cities:
     filtered_df = filtered_df[filtered_df['City'].isin(cities)]
 
-# If no data after filtering
+# Check if there's data
 if filtered_df.empty:
     st.warning("No data available for the selected filters.")
 else:
-    # Determine grouping level
     grouping_column = "City" if cities else "County"
 
-    # Prepare and plot data
-    plot_data = filtered_df.groupby(['Date', grouping_column])[selected_metric].mean().reset_index()
+    plot_data = filtered_df.groupby(['Date', grouping_column]).agg({selected_metric: 'mean'})
+    
+    if selected_demo != "None":
+        plot_data[selected_demo] = filtered_df.groupby(['Date', grouping_column])[selected_demo].mean()
+
+    plot_data = plot_data.reset_index()
 
     st.title("📊 California Crime Dashboard (per 100k)")
-    st.markdown("Visualizing crime and clearance rates across cities and counties in California. Select metrics and filters from the sidebar.")
+    st.markdown("Explore crime trends alongside demographics across counties and cities.")
+
     st.subheader(f"{metric_names[selected_metric]} Over Time")
 
-    fig = px.line(plot_data, x='Date', y=selected_metric, color=grouping_column, title=metric_names[selected_metric])
+    # Plot
+    fig = go.Figure()
+
+    for group in plot_data[grouping_column].unique():
+        df_group = plot_data[plot_data[grouping_column] == group]
+
+        # Crime line
+        fig.add_trace(go.Scatter(
+            x=df_group['Date'], y=df_group[selected_metric], mode='lines',
+            name=f"{group} - {selected_metric}", yaxis='y1'
+        ))
+
+        # Demographic line (secondary y-axis)
+        if selected_demo != "None":
+            fig.add_trace(go.Scatter(
+                x=df_group['Date'], y=df_group[selected_demo], mode='lines',
+                name=f"{group} - {selected_demo}", yaxis='y2', line=dict(dash='dot')
+            ))
+
+    # Layout settings
+    layout = {
+        "title": f"{metric_names[selected_metric]} Over Time",
+        "xaxis": {"title": "Date"},
+        "yaxis": {"title": selected_metric},
+        "legend": {"orientation": "h"},
+    }
+
+    if selected_demo != "None":
+        layout["yaxis2"] = {
+            "title": selected_demo,
+            "overlaying": "y",
+            "side": "right",
+            "showgrid": False
+        }
+
+    fig.update_layout(layout)
     st.plotly_chart(fig, use_container_width=True)
