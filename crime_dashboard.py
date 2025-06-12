@@ -10,7 +10,6 @@ import numpy as np
 st.set_page_config(layout="wide", page_title="California Crime Dashboard")
 
 @st.cache_data
-
 def load_data():
     df = pd.read_csv("chapter1final.csv")
     df.columns = df.columns.str.strip()
@@ -33,15 +32,14 @@ def load_data():
         "PropertyClr_per_100k": "Property Crime Clearance Rate"
     }
 
-    df = df.rename(columns=rename_map)
-    return df
+    return df.rename(columns=rename_map)
 
-# Define demographic columns
+# --- Variables ---
 crime_metrics = [
-    "Violent Crime Rate", "Property Crime Rate", "Homicide Rate", "Rape Rate", 
-    "Robbery by Firearm Rate", "Robbery Rate", "Aggravated Assault Rate", 
-    "Burglary Rate", "Assault by Firearm Rate", "Larceny Theft Rate", 
-    "Vehicle Theft Rate", "Arson Rate", "Violent Crime Clearance Rate", 
+    "Violent Crime Rate", "Property Crime Rate", "Homicide Rate", "Rape Rate",
+    "Robbery by Firearm Rate", "Robbery Rate", "Aggravated Assault Rate",
+    "Burglary Rate", "Assault by Firearm Rate", "Larceny Theft Rate",
+    "Vehicle Theft Rate", "Arson Rate", "Violent Crime Clearance Rate",
     "Property Crime Clearance Rate"
 ]
 
@@ -51,18 +49,17 @@ demographic_vars = [
     "Veteran Population", "Married Population", "Widowed Population",
     "Divorced Population", "Separated Population", "Never-Married Population",
     "Unemployed Population", "High School Graduates", "Bachelor's Degree Holders",
-    "Graduate Degree Holders", "Children (0-17 years) Male",
-    "Young Adults (18-24 years) Male", "Adults (25-44 years) Male",
-    "Middle-aged Adults (45-64 years) Male", "Seniors (65+ years) Male",
-    "Children (0-17 years) Female", "Young Adults (18-24 years) Female",
-    "Adults (25-44 years) Female", "Middle-aged Adults (45-64 years) Female",
-    "Seniors (65+ years) Female", "Male Veterans", "Female Veterans"
+    "Graduate Degree Holders", "Children (0-17 years) Male", "Young Adults (18-24 years) Male",
+    "Adults (25-44 years) Male", "Middle-aged Adults (45-64 years) Male", "Seniors (65+ years) Male",
+    "Children (0-17 years) Female", "Young Adults (18-24 years) Female", "Adults (25-44 years) Female",
+    "Middle-aged Adults (45-64 years) Female", "Seniors (65+ years) Female",
+    "Male Veterans", "Female Veterans"
 ]
 
-# Load data
+# --- Load Data ---
 df = load_data()
 
-# Sidebar filters
+# --- Sidebar ---
 st.sidebar.title("Filters")
 st.session_state["Page"] = st.sidebar.radio("Go to:", ["📈 Crime Trends", "📊 Crime & Demographics"])
 
@@ -77,6 +74,7 @@ if cities:
     filtered_df = filtered_df[filtered_df['City'].isin(cities)]
 filtered_df = filtered_df[filtered_df['Year'] == selected_year]
 
+# --- Crime Trends Page ---
 if st.session_state["Page"] == "📈 Crime Trends":
     st.title("📈 California Crime Trends Over Time")
     selected_metric = st.sidebar.selectbox("Select Crime Metric", options=crime_metrics)
@@ -92,12 +90,20 @@ if st.session_state["Page"] == "📈 Crime Trends":
     fig = px.line(plot_data, x='Date', y=selected_metric, color=grouping_column, title=f"{selected_metric} Over Time")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Optional: demographic overlay
+    # Demographic overlay
     demo_metric = st.sidebar.selectbox("Add Demographic Line?", options=[None] + demographic_vars)
     if demo_metric:
-        fig2 = px.line(plot_data, x='Date', y=demo_metric, color=grouping_column, title=f"{demo_metric} Over Time")
-        st.plotly_chart(fig2, use_container_width=True)
+        if demo_metric in time_data.columns:
+            demo_data = time_data.groupby(['Date', grouping_column])[demo_metric].mean().reset_index()
+            if not demo_data.empty:
+                fig2 = px.line(demo_data, x='Date', y=demo_metric, color=grouping_column, title=f"{demo_metric} Over Time")
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.warning("No data for selected demographic.")
+        else:
+            st.error(f"'{demo_metric}' not found.")
 
+# --- Crime & Demographics Page ---
 else:
     st.title("📊 Crime and Demographic Correlation Explorer")
 
@@ -112,19 +118,23 @@ else:
             corr = plot_df[[demo_x, crime]].corr().iloc[0, 1]
             st.markdown(f"**Correlation: {corr:.2f}**")
 
-            fig = px.scatter(
-                plot_df, x=demo_x, y=crime, color='County',
-                hover_data=['City'], trendline="ols",
-                title=f"{crime} vs {demo_x} ({selected_year})"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            try:
+                fig = px.scatter(
+                    plot_df, x=demo_x, y=crime, color='County',
+                    hover_data=['City'], trendline="ols",
+                    title=f"{crime} vs {demo_x} ({selected_year})"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"Plot error: {str(e)}")
+        else:
+            st.warning("Not enough data for correlation plot.")
 
-    # Clustering section
+    # --- Clustering ---
     st.markdown("---")
     st.subheader("🔍 Clustering: Group Cities/Counties by Crime & Demographics")
-
     cluster_vars = st.multiselect("Select variables for clustering", options=demographic_vars + crime_metrics, default=["Violent Crime Rate", "Hispanic Population"])
-    num_clusters = st.slider("Select number of clusters", min_value=2, max_value=6, value=3)
+    num_clusters = st.slider("Select number of clusters", 2, 6, 3)
 
     cluster_df = filtered_df[cluster_vars + ['City', 'County']].dropna()
     if not cluster_df.empty:
@@ -139,12 +149,15 @@ else:
         )
         st.plotly_chart(fig3, use_container_width=True)
 
-    # Heatmap
+    # --- Heatmap ---
     st.markdown("---")
     st.subheader("📌 Heatmap: Correlation Between Crimes and Demographics")
     heat_df = filtered_df[demographic_vars + crime_metrics].dropna()
-    corr_matrix = heat_df.corr()
 
-    fig4, ax = plt.subplots(figsize=(14, 10))
-    sns.heatmap(corr_matrix.loc[crime_metrics, demographic_vars], annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
-    st.pyplot(fig4)
+    if not heat_df.empty:
+        corr_matrix = heat_df.corr()
+        fig4, ax = plt.subplots(figsize=(14, 10))
+        sns.heatmap(corr_matrix.loc[crime_metrics, demographic_vars], annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
+        st.pyplot(fig4)
+    else:
+        st.warning("Insufficient data to compute correlation matrix.")
