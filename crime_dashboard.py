@@ -72,7 +72,7 @@ if cities:
     filtered_df = filtered_df[filtered_df['City'].isin(cities)]
 filtered_df = filtered_df[filtered_df['Year'] == selected_year]
 
-# --- Crime Trends Page ---
+# --- Crime Trends Page --- Page 1
 if st.session_state["Page"] == "📈 Crime Trends":
     st.title("📈 California Crime Trends Over Time")
 
@@ -107,7 +107,7 @@ if st.session_state["Page"] == "📈 Crime Trends":
         else:
             st.error(f"'{demo_metric}' not found.")
 
-# --- Crime & Demographic Correlation Page ---
+# --- Crime & Demographic Correlation Page --- Page 2
 else:
     st.title("📊 Explore Crime & Demographic Patterns")
 
@@ -186,3 +186,55 @@ else:
         st.pyplot(fig4)
     else:
         st.warning("Insufficient data to compute correlation matrix.")
+
+
+# --- Demographic Context Explorer (New Page 3) ---
+if st.session_state["Page"] == "📉 Demographic Crime Context":
+    st.title("📉 Crime Patterns Across Demographic Contexts")
+
+    st.markdown("""
+    This page explores how **crime rates vary across regions with different demographic characteristics**.
+
+    > ⚠️ **Note**: This analysis does not imply that individuals of a demographic group commit more crimes. It shows how places with different demographic profiles report different average crime rates.
+    """)
+
+    # --- Select Crime and Demographic Variable ---
+    crime_var = st.selectbox("Select Crime Rate", options=crime_metrics, index=0)
+    demo_var = st.selectbox("Select Demographic Variable", options=demographic_vars, index=0)
+    year_filter = st.selectbox("Select Year", options=sorted(df['Year'].unique(), reverse=True))
+
+    # --- Filter Data ---
+    context_df = df[df['Year'] == year_filter][[crime_var, demo_var, 'County', 'City']].dropna()
+
+    # --- Bin Demographic Variable into Groups ---
+    try:
+        num_bins = st.slider("Number of Bins (for Demographic Groups)", 3, 8, 5)
+        context_df['DemoBin'] = pd.qcut(context_df[demo_var], q=num_bins, duplicates='drop')
+        binned = context_df.groupby('DemoBin')[crime_var].mean().reset_index()
+
+        # --- Bar Chart ---
+        fig = px.bar(
+            binned, x='DemoBin', y=crime_var,
+            title=f"Average {crime_var} by {demo_var} Groupings ({year_filter})",
+            labels={"DemoBin": f"{demo_var} Group (Quantile)", crime_var: f"Avg {crime_var}"},
+            color_discrete_sequence=["#1f77b4"]
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown(f"This bar chart groups counties/cities into **{num_bins} quantiles** based on their {demo_var}. It shows how average **{crime_var}** changes across these demographic segments.")
+
+    except Exception as e:
+        st.error(f"Could not generate demographic bins: {e}")
+
+    # --- Optional Time Trend ---
+    with st.expander("📈 Optional: Show Trends for High vs Low Demographic Share"):
+        time_df = df[['Date', crime_var, demo_var, 'County', 'City']].dropna()
+        time_df['QuantileGroup'] = pd.qcut(time_df[demo_var], q=4, labels=["Low", "Mid-Low", "Mid-High", "High"], duplicates='drop')
+        trend_df = time_df.groupby(['Date', 'QuantileGroup'])[crime_var].mean().reset_index()
+
+        fig2 = px.line(trend_df, x='Date', y=crime_var, color='QuantileGroup',
+                       title=f"{crime_var} Over Time by {demo_var} Quartile",
+                       labels={"QuantileGroup": f"{demo_var} Group", crime_var: crime_var})
+        st.plotly_chart(fig2, use_container_width=True)
+        st.markdown(f"This line chart compares **{crime_var} trends over time** for locations with low vs. high values of **{demo_var}**.")
+
