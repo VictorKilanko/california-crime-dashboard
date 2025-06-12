@@ -14,7 +14,6 @@ def load_data():
     df = pd.read_csv("chapter1final.csv")
     df.columns = df.columns.str.strip()
     df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str) + '-01')
-
     rename_map = {
         "Violent_per_100k": "Violent Crime Rate",
         "Property_per_100k": "Property Crime Rate",
@@ -31,7 +30,6 @@ def load_data():
         "ViolentClr_per_100k": "Violent Crime Clearance Rate",
         "PropertyClr_per_100k": "Property Crime Clearance Rate"
     }
-
     return df.rename(columns=rename_map)
 
 # --- Variables ---
@@ -61,7 +59,7 @@ df = load_data()
 
 # --- Sidebar ---
 st.sidebar.title("Filters")
-st.session_state["Page"] = st.sidebar.radio("Go to:", ["📈 Crime Trends", "📊 Crime & Demographics"])
+st.session_state["Page"] = st.sidebar.radio("Go to:", ["📈 Crime Trends", "📊 Explore Crime & Demographic Patterns"])
 
 counties = st.sidebar.multiselect("Select County", options=df['County'].unique())
 cities = st.sidebar.multiselect("Select City", options=df['City'].dropna().unique())
@@ -77,6 +75,9 @@ filtered_df = filtered_df[filtered_df['Year'] == selected_year]
 # --- Crime Trends Page ---
 if st.session_state["Page"] == "📈 Crime Trends":
     st.title("📈 California Crime Trends Over Time")
+
+    st.markdown("Explore how crime rates and demographic metrics have changed over time in California counties and cities.")
+
     selected_metric = st.sidebar.selectbox("Select Crime Metric", options=crime_metrics)
     grouping_column = "City" if cities else "County"
 
@@ -87,52 +88,72 @@ if st.session_state["Page"] == "📈 Crime Trends":
         time_data = time_data[time_data['City'].isin(cities)]
 
     plot_data = time_data.groupby(['Date', grouping_column])[selected_metric].mean().reset_index()
-    fig = px.line(plot_data, x='Date', y=selected_metric, color=grouping_column, title=f"{selected_metric} Over Time")
+    fig = px.line(plot_data, x='Date', y=selected_metric, color=grouping_column,
+                  title=f"{selected_metric} Over Time")
     st.plotly_chart(fig, use_container_width=True)
+    st.markdown(f"This line chart shows how **{selected_metric}** has changed over time. Use it to identify trends, spikes, or declines in selected areas.")
 
-    # Demographic overlay
     demo_metric = st.sidebar.selectbox("Add Demographic Line?", options=[None] + demographic_vars)
     if demo_metric:
         if demo_metric in time_data.columns:
             demo_data = time_data.groupby(['Date', grouping_column])[demo_metric].mean().reset_index()
             if not demo_data.empty:
-                fig2 = px.line(demo_data, x='Date', y=demo_metric, color=grouping_column, title=f"{demo_metric} Over Time")
+                fig2 = px.line(demo_data, x='Date', y=demo_metric, color=grouping_column,
+                               title=f"{demo_metric} Over Time")
                 st.plotly_chart(fig2, use_container_width=True)
+                st.markdown(f"This second chart overlays the demographic metric **{demo_metric}** over time. You can compare it visually with the crime trend.")
             else:
                 st.warning("No data for selected demographic.")
         else:
             st.error(f"'{demo_metric}' not found.")
 
-# --- Crime & Demographics Page ---
+# --- Crime & Demographic Correlation Page ---
 else:
-    st.title("📊 Crime and Demographic Correlation Explorer")
+    st.title("📊 Explore Crime & Demographic Patterns")
+
+    st.markdown("""
+    <div style='padding: 1em; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 5px;'>
+    <b>⚠️ Important:</b> Correlation does <i>not</i> imply causation. These plots show statistical relationships, but do not explain why the relationship exists.
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.expander("ℹ️ What does this page show?"):
+        st.markdown("""
+        - You can explore how different demographic groups relate to crime rates.
+        - The scatter plots show whether there's a linear relationship (correlation) between the variables.
+        - A correlation value closer to +1 or -1 means stronger association.
+        - But correlation **does not** mean one causes the other.
+        """)
 
     selected_crimes = st.multiselect("Select Crime Metric(s)", options=crime_metrics, default=["Violent Crime Rate"])
-    demo_x = st.selectbox("Select Demographic Variable (X-axis)", options=demographic_vars)
+    demo_x = st.selectbox("Select Demographic Variable (X-axis)", options=demographic_vars, help="This will appear on the x-axis of your scatter plot.")
+
+    show_corr = st.checkbox("Show correlation coefficient (r)", value=True)
 
     for crime in selected_crimes:
         st.markdown(f"### {crime} vs {demo_x}")
-        plot_df = filtered_df[[demo_x, crime, 'City', 'County']].dropna()
+        st.markdown(f"This scatter plot compares **{demo_x}** to **{crime}** for the year {selected_year}. Each point represents a city or county.")
 
+        plot_df = filtered_df[[demo_x, crime, 'City', 'County']].dropna()
         if not plot_df.empty:
             corr = plot_df[[demo_x, crime]].corr().iloc[0, 1]
-            st.markdown(f"**Correlation: {corr:.2f}**")
+            if show_corr:
+                st.markdown(f"**Correlation (r): {corr:.2f}**")
 
-            try:
-                fig = px.scatter(
-                    plot_df, x=demo_x, y=crime, color='County',
-                    hover_data=['City'], trendline="ols",
-                    title=f"{crime} vs {demo_x} ({selected_year})"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.error(f"Plot error: {str(e)}")
+            fig = px.scatter(
+                plot_df, x=demo_x, y=crime, color='County',
+                hover_data=['City'], trendline="ols",
+                title=f"{crime} vs {demo_x} ({selected_year})"
+            )
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning("Not enough data for correlation plot.")
+            st.warning("Not enough data for this combination.")
 
     # --- Clustering ---
     st.markdown("---")
     st.subheader("🔍 Clustering: Group Cities/Counties by Crime & Demographics")
+    st.markdown("Use KMeans clustering to group locations with similar characteristics based on selected variables.")
+
     cluster_vars = st.multiselect("Select variables for clustering", options=demographic_vars + crime_metrics, default=["Violent Crime Rate", "Hispanic Population"])
     num_clusters = st.slider("Select number of clusters", 2, 6, 3)
 
@@ -148,12 +169,16 @@ else:
             hover_data=['City', 'County'], title="KMeans Clustering by Selected Variables"
         )
         st.plotly_chart(fig3, use_container_width=True)
+        st.markdown(f"This chart groups locations into **{num_clusters} clusters** based on the variables you've chosen. Similar profiles fall into the same cluster.")
+    else:
+        st.warning("Not enough data for clustering.")
 
     # --- Heatmap ---
     st.markdown("---")
     st.subheader("📌 Heatmap: Correlation Between Crimes and Demographics")
-    heat_df = filtered_df[demographic_vars + crime_metrics].dropna()
+    st.markdown("This heatmap shows the strength of linear relationships between all selected crime and demographic variables.")
 
+    heat_df = filtered_df[demographic_vars + crime_metrics].dropna()
     if not heat_df.empty:
         corr_matrix = heat_df.corr()
         fig4, ax = plt.subplots(figsize=(14, 10))
