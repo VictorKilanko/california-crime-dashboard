@@ -1,14 +1,12 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
 import numpy as np
 
+# --- Page Configuration ---
 st.set_page_config(layout="wide", page_title="California Crime Dashboard")
 
+# --- Load and Prepare Data ---
 @st.cache_data
 def load_data():
     df = pd.read_csv("chapter1final.csv")
@@ -32,42 +30,26 @@ def load_data():
     }
     return df.rename(columns=rename_map)
 
-# --- Variables ---
-crime_metrics = [
-    "Violent Crime Rate", "Property Crime Rate", "Homicide Rate", "Rape Rate",
-    "Robbery by Firearm Rate", "Robbery Rate", "Aggravated Assault Rate",
-    "Burglary Rate", "Assault by Firearm Rate", "Larceny Theft Rate",
-    "Vehicle Theft Rate", "Arson Rate", "Violent Crime Clearance Rate",
-    "Property Crime Clearance Rate"
-]
-
-demographic_vars = [
-    "Male Population", "Female Population", "White Population", "Black Population",
-    "Asian Population", "Hispanic Population", "Foreign-Born Population",
-    "Veteran Population", "Married Population", "Widowed Population",
-    "Divorced Population", "Separated Population", "Never-Married Population",
-    "Unemployed Population", "High School Graduates", "Bachelor's Degree Holders",
-    "Graduate Degree Holders", "Children (0-17 years) Male", "Young Adults (18-24 years) Male",
-    "Adults (25-44 years) Male", "Middle-aged Adults (45-64 years) Male", "Seniors (65+ years) Male",
-    "Children (0-17 years) Female", "Young Adults (18-24 years) Female", "Adults (25-44 years) Female",
-    "Middle-aged Adults (45-64 years) Female", "Seniors (65+ years) Female",
-    "Male Veterans", "Female Veterans"
-]
-
-# --- Load Data ---
 df = load_data()
+
+# --- Lists ---
+crime_metrics = list(df.columns[df.columns.str.contains("Rate")])
+demographic_vars = [col for col in df.columns if col not in crime_metrics + ['Date', 'Month', 'Year', 'County', 'City']]
 
 # --- Sidebar ---
 st.sidebar.title("Filters")
 st.session_state["Page"] = st.sidebar.radio(
     "Go to:", 
-    ["📈 Crime Trends", "📊 Explore Crime & Demographic Patterns", "📉 Demographic Crime Context"]
+    ["🏠 Welcome", "📈 Crime Trends", 
+     "📉 Demographic Crime Context", "🔍 Predict or Explain Crime"]
 )
+
 
 counties = st.sidebar.multiselect("Select County", options=df['County'].unique())
 cities = st.sidebar.multiselect("Select City", options=df['City'].dropna().unique())
 selected_year = st.sidebar.selectbox("Select Year", options=sorted(df['Year'].unique(), reverse=True))
 
+# --- Apply Filters ---
 filtered_df = df.copy()
 if counties:
     filtered_df = filtered_df[filtered_df['County'].isin(counties)]
@@ -75,28 +57,70 @@ if cities:
     filtered_df = filtered_df[filtered_df['City'].isin(cities)]
 filtered_df = filtered_df[filtered_df['Year'] == selected_year]
 
-# --- Crime Trends Page --- Page 1
+
+# --- Landing Page ---
+if st.session_state["Page"] == "🏠 Welcome":
+    st.title("🏠 Welcome to the California Crime Dashboard")
+
+    st.markdown("""
+    This interactive dashboard helps you explore the **relationships between crime and demographics** across California cities and counties.
+
+    ---  
+
+    ### 🔍 What You Can Do Here
+    - 📈 **Crime Trends**: See how crime has evolved over time.
+    - 📊 **Compare with Demographics**: Understand how income, education, and more relate to crime rates.
+    - 🧠 **Run Predictive Models**: Try out machine learning to **predict crime rates** based on community factors.
+    - 🎛️ **What-If Simulations**: Adjust demographics to see projected crime levels.
+
+    ---
+
+    ### 🧭 Getting Started
+    1. Use the **sidebar** to navigate between pages.
+    2. Apply filters by **county**, **city**, or **year** to focus your view.
+    3. Dive deeper using the **predictive tools** or demographic visualizations.
+
+    ---
+
+    ⚠️ **Note**: This dashboard is for educational and exploratory purposes only. It does **not imply causation**.
+    """)
+
+
+# ==========================
+# 📈 PAGE 1: Crime Trends
+# ==========================
 if st.session_state["Page"] == "📈 Crime Trends":
     st.title("📈 California Crime Trends Over Time")
 
-    st.markdown("Explore how crime rates and demographic metrics have changed over time in California counties and cities.")
+    with st.expander("🧭 How to Use This Page", expanded=True):
+        st.markdown("""
+        This page shows **how crime rates and population factors change over time**.
+
+        1. Use the **sidebar** to select a crime metric and location(s).
+        2. View the crime rate trend over time.
+        3. *(Optional)* Add a **demographic variable** to compare against crime.
+
+        Example: How has *Vehicle Theft Rate* changed over time in Alameda County?
+        """)
 
     selected_metric = st.sidebar.selectbox("Select Crime Metric", options=crime_metrics)
-    grouping_column = "City" if cities else "County"
+    demo_metric = st.sidebar.selectbox("Add Demographic Line?", options=[None] + demographic_vars)
 
+    grouping_column = "City" if cities else "County"
     time_data = df.copy()
     if counties:
         time_data = time_data[time_data['County'].isin(counties)]
     if cities:
         time_data = time_data[time_data['City'].isin(cities)]
 
+    # Crime line plot
     plot_data = time_data.groupby(['Date', grouping_column])[selected_metric].mean().reset_index()
     fig = px.line(plot_data, x='Date', y=selected_metric, color=grouping_column,
                   title=f"{selected_metric} Over Time")
     st.plotly_chart(fig, use_container_width=True)
-    st.markdown(f"This line chart shows how **{selected_metric}** has changed over time. Use it to identify trends, spikes, or declines in selected areas.")
+    st.markdown(f"📊 **{selected_metric}** over time. Look for spikes, drops, or long-term patterns.")
 
-    demo_metric = st.sidebar.selectbox("Add Demographic Line?", options=[None] + demographic_vars)
+    # Optional demographic line
     if demo_metric:
         if demo_metric in time_data.columns:
             demo_data = time_data.groupby(['Date', grouping_column])[demo_metric].mean().reset_index()
@@ -104,140 +128,180 @@ if st.session_state["Page"] == "📈 Crime Trends":
                 fig2 = px.line(demo_data, x='Date', y=demo_metric, color=grouping_column,
                                title=f"{demo_metric} Over Time")
                 st.plotly_chart(fig2, use_container_width=True)
-                st.markdown(f"This second chart overlays the demographic metric **{demo_metric}** over time. You can compare it visually with the crime trend.")
+                st.markdown(f"📈 **{demo_metric}** trend — useful for side-by-side comparisons.")
             else:
-                st.warning("No data for selected demographic.")
+                st.warning("No data available for the selected demographic.")
         else:
-            st.error(f"'{demo_metric}' not found.")
+            st.error(f"'{demo_metric}' not found in dataset.")
 
-# --- Crime & Demographic Correlation Page --- Page 2
-else:
-    st.title("📊 Explore Crime & Demographic Patterns")
-
-    st.markdown("""
-    <div style='padding: 1em; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 5px;'>
-    <b>⚠️ Important:</b> Correlation does <i>not</i> imply causation. These plots show statistical relationships, but do not explain why the relationship exists.
-    </div>
-    """, unsafe_allow_html=True)
-
-    with st.expander("ℹ️ What does this page show?"):
-        st.markdown("""
-        - You can explore how different demographic groups relate to crime rates.
-        - The scatter plots show whether there's a linear relationship (correlation) between the variables.
-        - A correlation value closer to +1 or -1 means stronger association.
-        - But correlation **does not** mean one causes the other.
-        """)
-
-    selected_crimes = st.multiselect("Select Crime Metric(s)", options=crime_metrics, default=["Violent Crime Rate"])
-    demo_x = st.selectbox("Select Demographic Variable (X-axis)", options=demographic_vars, help="This will appear on the x-axis of your scatter plot.")
-
-    show_corr = st.checkbox("Show correlation coefficient (r)", value=True)
-
-    for crime in selected_crimes:
-        st.markdown(f"### {crime} vs {demo_x}")
-        st.markdown(f"This scatter plot compares **{demo_x}** to **{crime}** for the year {selected_year}. Each point represents a city or county.")
-
-        plot_df = filtered_df[[demo_x, crime, 'City', 'County']].dropna()
-        if not plot_df.empty:
-            corr = plot_df[[demo_x, crime]].corr().iloc[0, 1]
-            if show_corr:
-                st.markdown(f"**Correlation (r): {corr:.2f}**")
-
-            fig = px.scatter(
-                plot_df, x=demo_x, y=crime, color='County',
-                hover_data=['City'], trendline="ols",
-                title=f"{crime} vs {demo_x} ({selected_year})"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Not enough data for this combination.")
-
-    # --- Clustering ---
-    st.markdown("---")
-    st.subheader("🔍 Clustering: Group Cities/Counties by Crime & Demographics")
-    st.markdown("Use KMeans clustering to group locations with similar characteristics based on selected variables.")
-
-    cluster_vars = st.multiselect("Select variables for clustering", options=demographic_vars + crime_metrics, default=["Violent Crime Rate", "Hispanic Population"])
-    num_clusters = st.slider("Select number of clusters", 2, 6, 3)
-
-    cluster_df = filtered_df[cluster_vars + ['City', 'County']].dropna()
-    if not cluster_df.empty:
-        scaler = StandardScaler()
-        scaled = scaler.fit_transform(cluster_df[cluster_vars])
-        kmeans = KMeans(n_clusters=num_clusters, random_state=42).fit(scaled)
-        cluster_df['Cluster'] = kmeans.labels_
-
-        fig3 = px.scatter(
-            cluster_df, x=cluster_vars[0], y=cluster_vars[1], color='Cluster',
-            hover_data=['City', 'County'], title="KMeans Clustering by Selected Variables"
-        )
-        st.plotly_chart(fig3, use_container_width=True)
-        st.markdown(f"This chart groups locations into **{num_clusters} clusters** based on the variables you've chosen. Similar profiles fall into the same cluster.")
-    else:
-        st.warning("Not enough data for clustering.")
-
-    # --- Heatmap ---
-    st.markdown("---")
-    st.subheader("📌 Heatmap: Correlation Between Crimes and Demographics")
-    st.markdown("This heatmap shows the strength of linear relationships between all selected crime and demographic variables.")
-
-    heat_df = filtered_df[demographic_vars + crime_metrics].dropna()
-    if not heat_df.empty:
-        corr_matrix = heat_df.corr()
-        fig4, ax = plt.subplots(figsize=(14, 10))
-        sns.heatmap(corr_matrix.loc[crime_metrics, demographic_vars], annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
-        st.pyplot(fig4)
-    else:
-        st.warning("Insufficient data to compute correlation matrix.")
-
-
-# --- Demographic Context Explorer (New Page 3) ---
+# ==========================
+# 📉 PAGE 2: Demographic Context
+# ==========================
 if st.session_state["Page"] == "📉 Demographic Crime Context":
     st.title("📉 Crime Patterns Across Demographic Contexts")
 
-    st.markdown("""
-    This page explores how **crime rates vary across regions with different demographic characteristics**.
+    with st.expander("🧭 How to Use This Page", expanded=True):
+        st.markdown("""
+        This page helps explore **how crime varies across places with different demographics**.
 
-    > ⚠️ **Note**: This analysis does not imply that individuals of a demographic group commit more crimes. It shows how places with different demographic profiles report different average crime rates.
-    """)
+        1. Pick a crime rate and a demographic variable.
+        2. The chart groups cities/counties based on the demographic value.
+        3. *(Optional)* Expand below to compare **trends over time** by demographic quartiles.
 
-    # --- Select Crime and Demographic Variable ---
-    crime_var = st.selectbox("Select Crime Rate", options=crime_metrics, index=0)
-    demo_var = st.selectbox("Select Demographic Variable", options=demographic_vars, index=0)
+        > This doesn't mean people from a group commit more crime — it shows **patterns across places**.
+        """)
+
+    crime_var = st.selectbox("Select Crime Rate", options=crime_metrics)
+    demo_var = st.selectbox("Select Demographic Variable", options=demographic_vars)
     year_filter = st.selectbox("Select Year", options=sorted(df['Year'].unique(), reverse=True))
 
-    # --- Filter Data ---
     context_df = df[df['Year'] == year_filter][[crime_var, demo_var, 'County', 'City']].dropna()
 
-    # --- Bin Demographic Variable into Groups ---
     try:
         num_bins = st.slider("Number of Bins (for Demographic Groups)", 3, 8, 5)
         context_df['DemoBin'] = pd.qcut(context_df[demo_var], q=num_bins, duplicates='drop')
         binned = context_df.groupby('DemoBin')[crime_var].mean().reset_index()
 
-        # --- Bar Chart ---
         fig = px.bar(
             binned, x='DemoBin', y=crime_var,
             title=f"Average {crime_var} by {demo_var} Groupings ({year_filter})",
-            labels={"DemoBin": f"{demo_var} Group (Quantile)", crime_var: f"Avg {crime_var}"},
+            labels={"DemoBin": f"{demo_var} Group", crime_var: f"Avg {crime_var}"},
             color_discrete_sequence=["#1f77b4"]
         )
         st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown(f"This bar chart groups counties/cities into **{num_bins} quantiles** based on their {demo_var}. It shows how average **{crime_var}** changes across these demographic segments.")
-
+        st.markdown(f"📊 Places are grouped by **{demo_var}** levels. You can see how average **{crime_var}** changes across those groups.")
     except Exception as e:
-        st.error(f"Could not generate demographic bins: {e}")
+        st.error(f"Could not create demographic bins: {e}")
 
-    # --- Optional Time Trend ---
-    with st.expander("📈 Optional: Show Trends for High vs Low Demographic Share"):
+    # --- Optional Trend Comparison ---
+    with st.expander("📈 Optional: Compare Time Trends for High vs. Low Demographic Groups"):
         time_df = df[['Date', crime_var, demo_var, 'County', 'City']].dropna()
-        time_df['QuantileGroup'] = pd.qcut(time_df[demo_var], q=4, labels=["Low", "Mid-Low", "Mid-High", "High"], duplicates='drop')
-        trend_df = time_df.groupby(['Date', 'QuantileGroup'])[crime_var].mean().reset_index()
+        try:
+            time_df['QuantileGroup'] = pd.qcut(time_df[demo_var], q=4, labels=["Low", "Mid-Low", "Mid-High", "High"], duplicates='drop')
+            trend_df = time_df.groupby(['Date', 'QuantileGroup'])[crime_var].mean().reset_index()
 
-        fig2 = px.line(trend_df, x='Date', y=crime_var, color='QuantileGroup',
-                       title=f"{crime_var} Over Time by {demo_var} Quartile",
-                       labels={"QuantileGroup": f"{demo_var} Group", crime_var: crime_var})
-        st.plotly_chart(fig2, use_container_width=True)
-        st.markdown(f"This line chart compares **{crime_var} trends over time** for locations with low vs. high values of **{demo_var}**.")
+            fig2 = px.line(
+                trend_df, x='Date', y=crime_var, color='QuantileGroup',
+                title=f"{crime_var} Over Time by {demo_var} Quartile",
+                labels={"QuantileGroup": f"{demo_var} Group", crime_var: crime_var}
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+            st.markdown("📈 This trend compares **crime over time** across demographic groups (quartiles).")
+        except:
+            st.warning("Unable to compute quartiles for selected demographic.")
 
+# --- Page 4: Predict or Explain Crime (with Model Choice & SHAP) ---
+if st.session_state["Page"] == "🔍 Predict or Explain Crime":
+    import shap
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from sklearn.linear_model import LinearRegression
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import r2_score
+    import seaborn as sns
+
+    st.title("🔍 Predict or Explain Crime with Data")
+
+    with st.expander("🧭 How to Use", expanded=True):
+        st.markdown("""
+        1. Choose a **crime variable** to explain or predict.
+        2. Select **predictor variables** like demographics or income.
+        3. Pick a **model type**: linear or non-linear (random forest).
+        4. Optionally filter by **city**.
+        5. See results and explore **'What if' simulations** and **SHAP explanations**.
+
+        > This is for **exploration**, not causal inference.
+        """)
+
+    target = st.selectbox("🎯 Select Crime Variable to Predict", options=crime_metrics)
+
+    predictor_options = [
+        'Hispanic Population', 'White Population', 'Black Population', 'Asian Population',
+        'Married Population', 'Never-Married Population', 'Median Household Income',
+        'Unemployed Population', 'Bachelor\'s Degree Holders', 'Graduate Degree Holders',
+        'Homeowners Population', 'Population Below Poverty'
+    ]
+
+    predictors = st.multiselect("📊 Select Predictor Variables", options=predictor_options, default=['Median Household Income'])
+
+    subset_city = st.selectbox("🏙️ Optional: Filter by City", options=["All"] + sorted(df['City'].dropna().unique().tolist()))
+
+    model_type = st.radio("🧠 Choose Model Type", ["Linear Regression", "Random Forest"], horizontal=True)
+
+    modeling_df = df.dropna(subset=[target] + predictors).copy()
+    if subset_city != "All":
+        modeling_df = modeling_df[modeling_df['City'] == subset_city]
+
+    if len(predictors) > 0 and not modeling_df.empty:
+        X = modeling_df[predictors]
+        y = modeling_df[target]
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        if model_type == "Linear Regression":
+            model = LinearRegression()
+        else:
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
+
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+        st.subheader("📈 Model Results")
+        st.markdown(f"**R² Score:** `{r2_score(y_test, y_pred):.2f}`")
+
+        if model_type == "Linear Regression":
+            coef_df = pd.DataFrame({
+                "Variable": predictors,
+                "Importance": model.coef_
+            }).sort_values(by="Importance", key=abs, ascending=False)
+        else:
+            coef_df = pd.DataFrame({
+                "Variable": predictors,
+                "Importance": model.feature_importances_
+            }).sort_values(by="Importance", ascending=False)
+
+        st.markdown("### 🔍 Feature Importance")
+        fig, ax = plt.subplots(figsize=(8, 4))
+        sns.barplot(data=coef_df, x="Importance", y="Variable", palette="coolwarm", ax=ax)
+        st.pyplot(fig)
+
+        # --- What-if Prediction ---
+        st.markdown("### 🎛️ Simulate 'What If' Scenario")
+        user_inputs = {}
+        for var in predictors:
+            min_val = float(X[var].min())
+            max_val = float(X[var].max())
+            mean_val = float(X[var].mean())
+            step = (max_val - min_val) / 100 if (max_val - min_val) > 1 else 0.1
+            user_inputs[var] = st.slider(f"{var}", min_val, max_val, mean_val, step=step)
+
+        input_df = pd.DataFrame([user_inputs])
+        prediction = model.predict(input_df)[0]
+        st.success(f"📌 Predicted **{target}**: `{prediction:.2f}` based on input values.")
+
+        # --- SHAP Explanations ---
+        with st.expander("🔎 Show SHAP Explanation", expanded=False):
+            st.info("SHAP values explain each feature's contribution to the prediction.")
+            with st.spinner("Calculating SHAP values..."):
+                if model_type == "Random Forest":
+                    explainer = shap.TreeExplainer(model)
+                else:
+                    explainer = shap.Explainer(model, X_train)
+
+                shap_values = explainer(input_df)
+
+                fig2, ax2 = plt.subplots()
+                shap.plots.waterfall(shap_values[0], max_display=10, show=False)
+                st.pyplot(fig2)
+
+    else:
+        st.warning("Please select at least one predictor and ensure data is available.")
+
+    # Optional: Correlation
+    with st.expander("🧪 Correlation Matrix"):
+        corr_cols = [target] + predictors
+        corr = modeling_df[corr_cols].corr()
+        fig3, ax3 = plt.subplots(figsize=(6, 4))
+        sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax3)
+        st.pyplot(fig3)
