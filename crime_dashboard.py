@@ -59,7 +59,10 @@ df = load_data()
 
 # --- Sidebar ---
 st.sidebar.title("Filters")
-st.session_state["Page"] = st.sidebar.radio("Go to:", ["📈 Crime Trends", "📊 Explore Crime & Demographic Patterns"])
+st.session_state["Page"] = st.sidebar.radio(
+    "Go to:", 
+    ["📈 Crime Trends", "📊 Explore Crime & Demographic Patterns", "📉 Demographic Crime Context"]
+)
 
 counties = st.sidebar.multiselect("Select County", options=df['County'].unique())
 cities = st.sidebar.multiselect("Select City", options=df['City'].dropna().unique())
