@@ -190,15 +190,19 @@ if st.session_state["Page"] == "📉 Demographic Crime Context":
         except:
             st.warning("Unable to compute quartiles for selected demographic.")
 
-# --- Page 4: Predict or Explain Crime (with Model Choice & SHAP) ---
+
+
+
+# --- Page 4: Predict or Explain Crime (Enhanced with Interpretability) ---
 if st.session_state["Page"] == "🔍 Predict or Explain Crime":
     import shap
     import numpy as np
     import matplotlib.pyplot as plt
+    import plotly.express as px
     from sklearn.linear_model import LinearRegression
     from sklearn.ensemble import RandomForestRegressor
     from sklearn.model_selection import train_test_split
-    from sklearn.metrics import r2_score
+    from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
     import seaborn as sns
 
     st.title("🔍 Predict or Explain Crime with Data")
@@ -209,9 +213,10 @@ if st.session_state["Page"] == "🔍 Predict or Explain Crime":
         2. Select **predictor variables** like demographics or income.
         3. Pick a **model type**: linear or non-linear (random forest).
         4. Optionally filter by **city**.
-        5. See results and explore **'What if' simulations** and **SHAP explanations**.
+        5. View prediction results, importance of features, and run **What-If simulations**.
+        6. Use **SHAP** to understand how individual variables affect predictions.
 
-        > This is for **exploration**, not causal inference.
+        > This is an **exploration tool**, not for causal inference or forecasting.
         """)
 
     target = st.selectbox("🎯 Select Crime Variable to Predict", options=crime_metrics)
@@ -222,7 +227,6 @@ if st.session_state["Page"] == "🔍 Predict or Explain Crime":
         'Unemployed Population', 'Bachelor\'s Degree Holders', 'Graduate Degree Holders',
         'Homeowners Population', 'Population Below Poverty'
     ]
-
     predictors = st.multiselect("📊 Select Predictor Variables", options=predictor_options, default=['Median Household Income'])
 
     subset_city = st.selectbox("🏙️ Optional: Filter by City", options=["All"] + sorted(df['City'].dropna().unique().tolist()))
@@ -239,16 +243,40 @@ if st.session_state["Page"] == "🔍 Predict or Explain Crime":
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        if model_type == "Linear Regression":
-            model = LinearRegression()
-        else:
-            model = RandomForestRegressor(n_estimators=100, random_state=42)
-
+        model = LinearRegression() if model_type == "Linear Regression" else RandomForestRegressor(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
+        # 📈 Model Results
         st.subheader("📈 Model Results")
-        st.markdown(f"**R² Score:** `{r2_score(y_test, y_pred):.2f}`")
+        st.markdown("""
+        📌 **R² Score** (explained variance):  
+        - Measures how well the model explains variation in the crime rate.
+        - **1.00** = perfect model, **0.00** = no predictive power.
+        """)
+
+        r2 = r2_score(y_test, y_pred)
+        mae = mean_absolute_error(y_test, y_pred)
+        rmse = mean_squared_error(y_test, y_pred, squared=False)
+
+        st.metric("R² Score", f"{r2:.2f}")
+        st.metric("MAE (Mean Absolute Error)", f"{mae:.2f}")
+        st.metric("RMSE (Root Mean Squared Error)", f"{rmse:.2f}")
+
+        fig_actual_vs_pred = px.scatter(
+            x=y_test, y=y_pred,
+            labels={"x": "Actual Crime Rate", "y": "Predicted Crime Rate"},
+            title="📍 Actual vs Predicted Crime Rate"
+        )
+        st.plotly_chart(fig_actual_vs_pred, use_container_width=True)
+
+        # 🔍 Feature Importance
+        st.subheader("📊 Feature Importance")
+        st.markdown("""
+        📌 **What this shows:**  
+        - The **relative impact** each variable had on the predictions.  
+        - Positive values ↑ crime; negative ↓ crime (in linear regression).  
+        """)
 
         if model_type == "Linear Regression":
             coef_df = pd.DataFrame({
@@ -261,13 +289,19 @@ if st.session_state["Page"] == "🔍 Predict or Explain Crime":
                 "Importance": model.feature_importances_
             }).sort_values(by="Importance", ascending=False)
 
-        st.markdown("### 🔍 Feature Importance")
-        fig, ax = plt.subplots(figsize=(8, 4))
+        fig_imp, ax = plt.subplots(figsize=(8, 4))
         sns.barplot(data=coef_df, x="Importance", y="Variable", palette="coolwarm", ax=ax)
-        st.pyplot(fig)
+        st.pyplot(fig_imp)
 
-        # --- What-if Prediction ---
-        st.markdown("### 🎛️ Simulate 'What If' Scenario")
+        # 🎛️ What-If Simulation
+        st.subheader("🎛️ Simulate 'What If' Scenario")
+        st.markdown("""
+        📌 Change predictor values to simulate their effect on predicted crime.  
+        Great for exploring *hypotheticals* like:  
+        - What if income increases?
+        - What if unemployment drops?
+        """)
+
         user_inputs = {}
         for var in predictors:
             min_val = float(X[var].min())
@@ -278,11 +312,16 @@ if st.session_state["Page"] == "🔍 Predict or Explain Crime":
 
         input_df = pd.DataFrame([user_inputs])
         prediction = model.predict(input_df)[0]
-        st.success(f"📌 Predicted **{target}**: `{prediction:.2f}` based on input values.")
+        st.success(f"📌 Predicted **{target}**: `{prediction:.2f}` based on your input values.")
 
-        # --- SHAP Explanations ---
-        with st.expander("🔎 Show SHAP Explanation", expanded=False):
-            st.info("SHAP values explain each feature's contribution to the prediction.")
+        # 🔎 SHAP Explanations
+        with st.expander("🔎 SHAP Explanation for This Prediction"):
+            st.markdown("""
+            📌 **SHAP** explains how each input variable contributed to this prediction:  
+            - Positive SHAP value: pushed prediction higher.  
+            - Negative SHAP value: pulled prediction lower.  
+            """)
+
             with st.spinner("Calculating SHAP values..."):
                 if model_type == "Random Forest":
                     explainer = shap.TreeExplainer(model)
@@ -291,17 +330,23 @@ if st.session_state["Page"] == "🔍 Predict or Explain Crime":
 
                 shap_values = explainer(input_df)
 
-                fig2, ax2 = plt.subplots()
+                fig_shap, ax2 = plt.subplots()
                 shap.plots.waterfall(shap_values[0], max_display=10, show=False)
-                st.pyplot(fig2)
+                st.pyplot(fig_shap)
+
+        # 🧪 Correlation Matrix
+        with st.expander("📉 Correlation Matrix"):
+            st.markdown("""
+            📌 **Correlations** show how strongly variables relate:  
+            - +1 = Strong positive  
+            - -1 = Strong negative  
+            - 0 = No relationship  
+            """)
+            corr_cols = [target] + predictors
+            corr = modeling_df[corr_cols].corr()
+            fig_corr, ax_corr = plt.subplots(figsize=(6, 4))
+            sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax_corr)
+            st.pyplot(fig_corr)
 
     else:
         st.warning("Please select at least one predictor and ensure data is available.")
-
-    # Optional: Correlation
-    with st.expander("🧪 Correlation Matrix"):
-        corr_cols = [target] + predictors
-        corr = modeling_df[corr_cols].corr()
-        fig3, ax3 = plt.subplots(figsize=(6, 4))
-        sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax3)
-        st.pyplot(fig3)
