@@ -115,39 +115,50 @@ if st.session_state["Page"] == "📈 Page 2: Crime Trends":
 
 # --- Page 3: Demographic Context ---
 if st.session_state["Page"] == "📉 Page 3: Demographic Context":
-    st.title("📉 Crime Patterns Across Demographic Contexts")
+    st.title("📊 Compare Crime Trends by Demographic Groups")
+    st.markdown("""
+    Use this tool to explore how crime rates differ across different segments of the population.
 
-    # Add unique keys to widgets
+    - Select a demographic variable (like % widowed or % below poverty).
+    - The population is split into equal-sized groups based on that variable.
+    - You’ll see how crime rates compare over time across those groups.
+
+    This helps identify if certain demographic characteristics are associated with higher or lower crime trends.
+    """)
+
     crime_var = st.selectbox("Select Crime Rate", options=crime_metrics, key="crime_var_page3")
     demo_var = st.selectbox("Select Demographic Variable", options=demographic_vars, key="demo_var_page3")
     year_filter = st.selectbox("Select Year", options=sorted(df['Year'].unique(), reverse=True), key="year_filter_page3")
 
-    context_df = df[df['Year'] == year_filter][[crime_var, demo_var, 'County', 'City']].dropna()
+    context_df = df[df['Year'] == year_filter][[crime_var, demo_var, 'County', 'City']].dropna(subset=[crime_var, demo_var])
 
     try:
         num_bins = st.slider("Number of Bins", 3, 8, 5, key="bin_slider_page3")
-        context_df['DemoBin'] = pd.qcut(context_df[demo_var], q=num_bins, duplicates='drop')
+        context_df['DemoBin'] = pd.qcut(context_df[demo_var], q=num_bins, duplicates='drop').astype(str)
         binned = context_df.groupby('DemoBin')[crime_var].mean().reset_index()
 
         fig = px.bar(binned, x='DemoBin', y=crime_var,
-                     title=f"Average {crime_var} by {demo_var} Bins ({year_filter})")
+                     labels={'DemoBin': f'{demo_var} Group', crime_var: f'Avg {crime_var}'},
+                     title=f"Average {crime_var} by {demo_var} Groups ({year_filter})")
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         st.error(f"Error: {e}")
 
-    # Trend Over Time with unique key
+    # Trend Over Time
     with st.expander("📈 Compare Trends Over Time", expanded=False):
-        time_df = df[['Date', crime_var, demo_var, 'County', 'City']].dropna()
+        time_df = df[['Date', crime_var, demo_var, 'County', 'City']].dropna(subset=[crime_var, demo_var])
         try:
             time_df['QuantileGroup'] = pd.qcut(time_df[demo_var], q=4, 
                                                labels=["Low", "Mid-Low", "Mid-High", "High"], 
-                                               duplicates='drop')
+                                               duplicates='drop').astype(str)
             trend_df = time_df.groupby(['Date', 'QuantileGroup'])[crime_var].mean().reset_index()
+
             fig2 = px.line(trend_df, x='Date', y=crime_var, color='QuantileGroup',
-                           title=f"{crime_var} Over Time by {demo_var} Quartile")
+                           title=f"{crime_var} Over Time by {demo_var} Quartile",
+                           labels={'QuantileGroup': f'{demo_var} Group'})
             st.plotly_chart(fig2, use_container_width=True)
-        except:
-            st.warning("Cannot compute trend quartiles.")
+        except Exception as e:
+            st.warning(f"Cannot compute trend quartiles: {e}")
 
 
 # --- Page 4: Predict or Explain Crime ---
@@ -174,18 +185,18 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
-        # --- Model Metrics Section ---
-        st.subheader("📈 Model Performance Metrics")
-        st.markdown("""
-        **R² (R-squared)** indicates how well the model explains the variation in the crime variable. A value closer to 1 means better prediction.
-        
-        **MAE (Mean Absolute Error)** shows the average prediction error in actual units — lower is better.
+       # --- Model Metrics Section ---
+       st.subheader("📈 Model Performance Metrics")
+       st.markdown("""
+       **R² (R-squared)** indicates how well the model explains the variation in the crime variable. A value closer to 1 means better prediction.
 
-        **RMSE (Root Mean Square Error)** penalizes larger errors more heavily than MAE — again, lower is better.
-        """)
-        st.metric("R² Score", f"{r2_score(y_test, y_pred):.2f}")
-        st.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.2f}")
-        st.metric("RMSE", f"{mean_squared_error(y_test, y_pred, squared=False):.2f}")
+       **MAE (Mean Absolute Error)** shows the average prediction error in actual units — lower is better.
+
+       **RMSE (Root Mean Square Error)** penalizes larger errors more heavily than MAE — again, lower is better.
+       """)
+       st.metric("R² Score", f"{r2_score(y_test, y_pred):.2f}")
+       st.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.2f}")
+       st.metric("RMSE", f"{np.sqrt(mean_squared_error(y_test, y_pred)):.2f}")
 
         # --- Actual vs Predicted Chart ---
         fig_actual_vs_pred = px.scatter(x=y_test, y=y_pred,
