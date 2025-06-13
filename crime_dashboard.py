@@ -186,17 +186,17 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
         y_pred = model.predict(X_test)
 
        # --- Model Metrics Section ---
-       st.subheader("📈 Model Performance Metrics")
-       st.markdown("""
-       **R² (R-squared)** indicates how well the model explains the variation in the crime variable. A value closer to 1 means better prediction.
+    st.subheader("📈 Model Performance Metrics")
+    st.markdown("""
+    **R² (R-squared)** indicates how well the model explains the variation in the crime variable. A value closer to 1 means better prediction.
 
-       **MAE (Mean Absolute Error)** shows the average prediction error in actual units — lower is better.
+    **MAE (Mean Absolute Error)** shows the average prediction error in actual units — lower is better.
 
-       **RMSE (Root Mean Square Error)** penalizes larger errors more heavily than MAE — again, lower is better.
-       """)
-       st.metric("R² Score", f"{r2_score(y_test, y_pred):.2f}")
-       st.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.2f}")
-       st.metric("RMSE", f"{np.sqrt(mean_squared_error(y_test, y_pred)):.2f}")
+    **RMSE (Root Mean Square Error)** penalizes larger errors more heavily than MAE — again, lower is better.
+     """)
+    st.metric("R² Score", f"{r2_score(y_test, y_pred):.2f}")
+    st.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.2f}")
+    st.metric("RMSE", f"{np.sqrt(mean_squared_error(y_test, y_pred)):.2f}")
 
         # --- Actual vs Predicted Chart ---
         fig_actual_vs_pred = px.scatter(x=y_test, y=y_pred,
