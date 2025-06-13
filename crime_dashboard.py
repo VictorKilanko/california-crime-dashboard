@@ -151,14 +151,15 @@ if st.session_state["Page"] == "📉 Demographic Crime Context":
         > This doesn't mean people from a group commit more crime — it shows **patterns across places**.
         """)
 
-    crime_var = st.selectbox("Select Crime Rate", options=crime_metrics)
-    demo_var = st.selectbox("Select Demographic Variable", options=demographic_vars)
-    year_filter = st.selectbox("Select Year", options=sorted(df['Year'].unique(), reverse=True))
+    # 👇 Added unique keys to each widget
+    crime_var = st.selectbox("Select Crime Rate", options=crime_metrics, key="page2_crime_var")
+    demo_var = st.selectbox("Select Demographic Variable", options=demographic_vars, key="page2_demo_var")
+    year_filter = st.selectbox("Select Year", options=sorted(df['Year'].unique(), reverse=True), key="page2_year_filter")
 
     context_df = df[df['Year'] == year_filter][[crime_var, demo_var, 'County', 'City']].dropna()
 
     try:
-        num_bins = st.slider("Number of Bins (for Demographic Groups)", 3, 8, 5)
+        num_bins = st.slider("Number of Bins (for Demographic Groups)", 3, 8, 5, key="page2_bin_slider")
         context_df['DemoBin'] = pd.qcut(context_df[demo_var], q=num_bins, duplicates='drop')
         binned = context_df.groupby('DemoBin')[crime_var].mean().reset_index()
 
@@ -189,8 +190,6 @@ if st.session_state["Page"] == "📉 Demographic Crime Context":
             st.markdown("📈 This trend compares **crime over time** across demographic groups (quartiles).")
         except:
             st.warning("Unable to compute quartiles for selected demographic.")
-
-
 
 
 # --- Page 4: Predict or Explain Crime (Enhanced with Interpretability) ---
