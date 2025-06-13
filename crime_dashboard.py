@@ -116,23 +116,32 @@ if st.session_state["Page"] == "📈 Page 2: Crime Trends":
 # --- Page 3: Demographic Context ---
 if st.session_state["Page"] == "📉 Page 3: Demographic Context":
     st.title("📉 Crime Patterns Across Demographic Contexts")
-    crime_var = st.selectbox("Select Crime Rate", options=crime_metrics)
-    demo_var = st.selectbox("Select Demographic Variable", options=demographic_vars)
-    year_filter = st.selectbox("Select Year", options=sorted(df['Year'].unique(), reverse=True))
+
+    # Add unique keys to widgets
+    crime_var = st.selectbox("Select Crime Rate", options=crime_metrics, key="crime_var_page3")
+    demo_var = st.selectbox("Select Demographic Variable", options=demographic_vars, key="demo_var_page3")
+    year_filter = st.selectbox("Select Year", options=sorted(df['Year'].unique(), reverse=True), key="year_filter_page3")
+
     context_df = df[df['Year'] == year_filter][[crime_var, demo_var, 'County', 'City']].dropna()
+
     try:
-        num_bins = st.slider("Number of Bins", 3, 8, 5)
+        num_bins = st.slider("Number of Bins", 3, 8, 5, key="bin_slider_page3")
         context_df['DemoBin'] = pd.qcut(context_df[demo_var], q=num_bins, duplicates='drop')
         binned = context_df.groupby('DemoBin')[crime_var].mean().reset_index()
+
         fig = px.bar(binned, x='DemoBin', y=crime_var,
                      title=f"Average {crime_var} by {demo_var} Bins ({year_filter})")
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         st.error(f"Error: {e}")
-    with st.expander("📈 Compare Trends Over Time"):
+
+    # Trend Over Time with unique key
+    with st.expander("📈 Compare Trends Over Time", expanded=False):
         time_df = df[['Date', crime_var, demo_var, 'County', 'City']].dropna()
         try:
-            time_df['QuantileGroup'] = pd.qcut(time_df[demo_var], q=4, labels=["Low", "Mid-Low", "Mid-High", "High"], duplicates='drop')
+            time_df['QuantileGroup'] = pd.qcut(time_df[demo_var], q=4, 
+                                               labels=["Low", "Mid-Low", "Mid-High", "High"], 
+                                               duplicates='drop')
             trend_df = time_df.groupby(['Date', 'QuantileGroup'])[crime_var].mean().reset_index()
             fig2 = px.line(trend_df, x='Date', y=crime_var, color='QuantileGroup',
                            title=f"{crime_var} Over Time by {demo_var} Quartile")
@@ -140,39 +149,72 @@ if st.session_state["Page"] == "📉 Page 3: Demographic Context":
         except:
             st.warning("Cannot compute trend quartiles.")
 
+
 # --- Page 4: Predict or Explain Crime ---
 if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
     st.title("🔍 Predict or Explain Crime")
+
+    # Selection inputs
     target = st.selectbox("🎯 Select Crime Variable to Predict", options=crime_metrics)
     predictor_options = demographic_vars
     predictors = st.multiselect("📊 Select Predictor Variables", options=predictor_options, default=['Median Household Income'])
     subset_city = st.selectbox("🏙️ Optional: Filter by City", options=["All"] + sorted(df['City'].dropna().unique().tolist()))
     model_type = st.radio("🧠 Choose Model Type", ["Linear Regression", "Random Forest"], horizontal=True)
+
     modeling_df = df.dropna(subset=[target] + predictors).copy()
     if subset_city != "All":
         modeling_df = modeling_df[modeling_df['City'] == subset_city]
+
     if len(predictors) > 0 and not modeling_df.empty:
         X = modeling_df[predictors]
         y = modeling_df[target]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
         model = LinearRegression() if model_type == "Linear Regression" else RandomForestRegressor(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
+
+        # --- Model Metrics Section ---
+        st.subheader("📈 Model Performance Metrics")
+        st.markdown("""
+        **R² (R-squared)** indicates how well the model explains the variation in the crime variable. A value closer to 1 means better prediction.
+        
+        **MAE (Mean Absolute Error)** shows the average prediction error in actual units — lower is better.
+
+        **RMSE (Root Mean Square Error)** penalizes larger errors more heavily than MAE — again, lower is better.
+        """)
         st.metric("R² Score", f"{r2_score(y_test, y_pred):.2f}")
         st.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.2f}")
         st.metric("RMSE", f"{mean_squared_error(y_test, y_pred, squared=False):.2f}")
+
+        # --- Actual vs Predicted Chart ---
         fig_actual_vs_pred = px.scatter(x=y_test, y=y_pred,
                                         labels={"x": "Actual", "y": "Predicted"},
                                         title="Actual vs Predicted Crime Rate")
         st.plotly_chart(fig_actual_vs_pred)
+
+        # --- Feature Importance Section ---
+        st.subheader("📌 Feature Importance")
+        st.markdown("""
+        Feature importance tells us which variables contributed most to the model's predictions.
+        Higher values mean the variable had a stronger influence on the outcome.
+        """)
         if model_type == "Linear Regression":
             coef_df = pd.DataFrame({"Variable": predictors, "Importance": model.coef_})
         else:
             coef_df = pd.DataFrame({"Variable": predictors, "Importance": model.feature_importances_})
+
         fig_imp, ax = plt.subplots()
         sns.barplot(data=coef_df, x="Importance", y="Variable", palette="coolwarm", ax=ax)
         st.pyplot(fig_imp)
+
+        # --- What-If Simulation ---
         st.subheader("🎛️ What-If Simulation")
+        st.markdown("""
+        Adjust the sliders below to simulate how changing predictor values affects the predicted crime rate.
+        This helps understand the impact of specific variables.
+        """)
+
         user_inputs = {}
         for var in predictors:
             min_val = float(X[var].min())
@@ -180,10 +222,17 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
             mean_val = float(X[var].mean())
             step = (max_val - min_val) / 100 if (max_val - min_val) > 1 else 0.1
             user_inputs[var] = st.slider(f"{var}", min_val, max_val, mean_val, step=step)
+
         input_df = pd.DataFrame([user_inputs])
         prediction = model.predict(input_df)[0]
         st.success(f"📌 Predicted {target}: {prediction:.2f}")
+
+        # --- SHAP Explanation ---
         with st.expander("🔎 SHAP Explanation"):
+            st.markdown("""
+            SHAP (SHapley Additive exPlanations) helps explain the contribution of each predictor to the individual prediction above.
+            Positive values increase the prediction, negative values decrease it.
+            """)
             try:
                 explainer = shap.TreeExplainer(model) if model_type == "Random Forest" else shap.Explainer(model, X_train)
                 shap_values = explainer(input_df)
@@ -192,10 +241,17 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
                 st.pyplot(fig_shap)
             except Exception as e:
                 st.warning(f"SHAP error: {e}")
+
+        # --- Correlation Matrix ---
         with st.expander("📉 Correlation Matrix"):
+            st.markdown("""
+            This shows how strongly each variable is related to one another. 
+            Correlation values range from -1 (perfect inverse) to +1 (perfect direct relationship).
+            """)
             corr = modeling_df[[target] + predictors].corr()
             fig_corr, ax_corr = plt.subplots(figsize=(6, 4))
             sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax_corr)
             st.pyplot(fig_corr)
+
     else:
         st.warning("Please select predictors and ensure data availability.")
