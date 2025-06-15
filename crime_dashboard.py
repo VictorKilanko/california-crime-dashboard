@@ -67,14 +67,14 @@ filtered_df = filtered_df[filtered_df['Year'] == selected_year]
 if st.session_state["Page"] == "🏠 Page 1: Welcome":
     st.title("🏠 Welcome to the California Crime Dashboard")
     st.markdown("""
-    This interactive dashboard helps you explore the **relationships between crime and demographics** across California cities and counties.
+    This interactive dashboard helps you explore the relationships between crime and demographics across California cities and counties.
 
     ---  
 
     ### 🔍 What You Can Do Here
     - 📈 **Crime Trends**: See how crime has evolved over time.
     - 📊 **Compare with Demographics**: Understand how income, education, and more relate to crime rates.
-    - 🧠 **Run Predictive Models**: Try out machine learning to **predict crime rates** based on community factors.
+    - 🧠 **Run Predictive Models**: Try out machine learning to predict crime rates based on community factors.
     - 🎛️ **What-If Simulations**: Adjust demographics to see projected crime levels.
 
     ---
