@@ -47,8 +47,8 @@ demographic_vars = [col for col in df.columns if col not in crime_metrics + ['Da
 st.sidebar.title("Filters")
 st.session_state["Page"] = st.sidebar.radio(
     "Go to:", 
-    ["🏠 Page 1: Welcome", "📈 Page 2: Crime Trends", 
-     "📉 Page 3: Demographic Context", "🔍 Page 4: Predict or Explain Crime"]
+    ["Page 1: Welcome", "Page 2: Crime Trends", 
+     "Page 3: Demographic Context", "Page 4: Predict or Explain Crime"]
 )
 
 counties = st.sidebar.multiselect("Select County", options=df['County'].unique())
@@ -64,34 +64,34 @@ if cities:
 filtered_df = filtered_df[filtered_df['Year'] == selected_year]
 
 # --- Page 1: Welcome ---
-if st.session_state["Page"] == "🏠 Page 1: Welcome":
-    st.title("🏠 Welcome to the California Crime Dashboard")
+if st.session_state["Page"] == "Page 1: Welcome":
+    st.title("Welcome to the California Crime Dashboard")
     st.markdown("""
     This interactive dashboard helps you explore the relationships between crime and demographics across California cities and counties.
 
     ---  
 
-    ### 🔍 What You Can Do Here
-    - 📈 **Crime Trends**: See how crime has evolved over time.
-    - 📊 **Compare with Demographics**: Understand how income, education, and more relate to crime rates.
-    - 🧠 **Run Predictive Models**: Try out machine learning to predict crime rates based on community factors.
-    - 🎛️ **What-If Simulations**: Adjust demographics to see projected crime levels.
+    ### What You Can Do Here
+    - **Crime Trends**: See how crime has evolved over time.
+    - **Compare with Demographics**: Understand how income, education, and more relate to crime rates.
+    - **Run Predictive Models**: Try out machine learning to predict crime rates based on community factors.
+    - **What-If Simulations**: Adjust demographics to see projected crime levels.
 
     ---
 
-    ### 🧭 Getting Started
+    ### Getting Started
     1. Use the **sidebar** to navigate between pages.
     2. Apply filters by **county**, **city**, or **year** to focus your view.
     3. Dive deeper using the **predictive tools** or demographic visualizations.
 
     ---
 
-    ⚠️ **Note**: This dashboard is for educational and exploratory purposes only. It does **not imply causation**.
+    **Note**: This dashboard is for educational and exploratory purposes only. It does **not imply causation**.
     """)
 
 # --- Page 2: Crime Trends ---
-if st.session_state["Page"] == "📈 Page 2: Crime Trends":
-    st.title("📈 California Crime Trends Over Time")
+if st.session_state["Page"] == "Page 2: Crime Trends":
+    st.title("California Crime Trends Over Time")
     selected_metric = st.sidebar.selectbox("Select Crime Metric", options=crime_metrics)
     demo_metric = st.sidebar.selectbox("Add Demographic Line?", options=[None] + demographic_vars)
     grouping_column = "City" if cities else "County"
@@ -114,8 +114,8 @@ if st.session_state["Page"] == "📈 Page 2: Crime Trends":
             st.warning("Could not plot demographic variable.")
 
 # --- Page 3: Demographic Context ---
-if st.session_state["Page"] == "📉 Page 3: Demographic Context":
-    st.title("📊 Compare Crime Trends by Demographic Groups")
+if st.session_state["Page"] == "Page 3: Demographic Context":
+    st.title("Compare Crime Trends by Demographic Groups")
     st.markdown("""
     Use this tool to explore how crime rates differ across different segments of the population.
 
@@ -145,7 +145,7 @@ if st.session_state["Page"] == "📉 Page 3: Demographic Context":
         st.error(f"Error: {e}")
 
     # Trend Over Time
-    with st.expander("📈 Compare Trends Over Time", expanded=False):
+    with st.expander("Compare Trends Over Time", expanded=False):
         time_df = df[['Date', crime_var, demo_var, 'County', 'City']].dropna(subset=[crime_var, demo_var])
         try:
             time_df['QuantileGroup'] = pd.qcut(time_df[demo_var], q=4, 
@@ -162,15 +162,15 @@ if st.session_state["Page"] == "📉 Page 3: Demographic Context":
 
 
 # --- Page 4: Predict or Explain Crime ---
-if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
-    st.title("🔍 Predict or Explain Crime")
+if st.session_state["Page"] == "Page 4: Predict or Explain Crime":
+    st.title("Predict or Explain Crime")
 
     # Selection inputs
-    target = st.selectbox("🎯 Select Crime Variable to Predict", options=crime_metrics)
+    target = st.selectbox("Select Crime Variable to Predict", options=crime_metrics)
     predictor_options = demographic_vars
-    predictors = st.multiselect("📊 Select Predictor Variables", options=predictor_options, default=['Median Household Income'])
-    subset_city = st.selectbox("🏙️ Optional: Filter by City", options=["All"] + sorted(df['City'].dropna().unique().tolist()))
-    model_type = st.radio("🧠 Choose Model Type", ["Linear Regression", "Random Forest"], horizontal=True)
+    predictors = st.multiselect("Select Predictor Variables", options=predictor_options, default=['Median Household Income'])
+    subset_city = st.selectbox("Optional: Filter by City", options=["All"] + sorted(df['City'].dropna().unique().tolist()))
+    model_type = st.radio("Choose Model Type", ["Linear Regression", "Random Forest"], horizontal=True)
 
     modeling_df = df.dropna(subset=[target] + predictors).copy()
     if subset_city != "All":
@@ -186,7 +186,7 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
         y_pred = model.predict(X_test)
 
         # --- Model Metrics Section ---
-        st.subheader("📈 Model Performance Metrics")
+        st.subheader("Model Performance Metrics")
         st.markdown("""
         **R² (R-squared)** indicates how well the model explains the variation in the crime variable. A value closer to 1 means better prediction.
 
@@ -205,7 +205,7 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
         st.plotly_chart(fig_actual_vs_pred)
 
         # --- Feature Importance Section ---
-        st.subheader("📌 Feature Importance")
+        st.subheader("Feature Importance")
         st.markdown("""
         Feature importance tells us which variables contributed most to the model's predictions.
         Higher values mean the variable had a stronger influence on the outcome.
@@ -220,7 +220,7 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
         st.pyplot(fig_imp)
 
         # --- What-If Simulation ---
-        st.subheader("🎛️ What-If Simulation")
+        st.subheader("What-If Simulation")
         st.markdown("""
         Adjust the sliders below to simulate how changing predictor values affects the predicted crime rate.
         This helps understand the impact of specific variables.
@@ -236,10 +236,10 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
 
         input_df = pd.DataFrame([user_inputs])
         prediction = model.predict(input_df)[0]
-        st.success(f"📌 Predicted {target}: {prediction:.2f}")
+        st.success(f"Predicted {target}: {prediction:.2f}")
 
         # --- SHAP Explanation ---
-        with st.expander("🔎 SHAP Explanation"):
+        with st.expander("SHAP Explanation"):
             st.markdown("""
             SHAP (SHapley Additive exPlanations) helps explain the contribution of each predictor to the individual prediction above.
             Positive values increase the prediction, negative values decrease it.
@@ -254,7 +254,7 @@ if st.session_state["Page"] == "🔍 Page 4: Predict or Explain Crime":
                 st.warning(f"SHAP error: {e}")
 
         # --- Correlation Matrix ---
-        with st.expander("📉 Correlation Matrix"):
+        with st.expander("Correlation Matrix"):
             st.markdown("""
             This shows how strongly each variable is related to one another. 
             Correlation values range from -1 (perfect inverse) to +1 (perfect direct relationship).
